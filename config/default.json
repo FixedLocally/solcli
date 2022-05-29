@@ -1,0 +1,7 @@
+{
+  "wallets": {
+    "default": "$HOME/.config/solana/id.json"
+  },
+  "wallet": "default",
+  "rpc": "https://api.mainnet-beta.solana.com/"
+}
