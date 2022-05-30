@@ -17,13 +17,21 @@ exports.CONFIG_PATH = `${homedir}/.config/solcli/solcli.json`;
 exports.CONFIG_DIR = `${homedir}/.config/solcli`;
 
 nconf.file({ file: `${homedir}/.config/solcli/solcli.json` });
+nconf.defaults({
+    "wallets": {
+        "default": `${homedir}/.config/solana/id.json`
+    },
+    "wallet": "default",
+    "rpc": "https://api.mainnet-beta.solana.com/"
+});
 exports.RPC_URL = nconf.get("rpc");
 exports.getConfig = nconf.get.bind(nconf);
 
-exports.toPubKey = (s) => {
-    return new PublicKey(s);
+function readKeypairFromFile(path) {
+    let keypair = fs.readFileSync(path.replace(/\$([A-Z_]+[A-Z\d_]*)|\${([A-Z\d_]*)}/ig, (_, a, b) => process.env[a || b]));
+    return Keypair.fromSecretKey(Uint8Array.from(JSON.parse(keypair)));
 }
-exports.resolveTokenSymbol = async function (conn, symbol) {
+async function resolveTokenSymbol(conn, symbol) {
     await tokenListPromise;
     // try to resolve the mint as a symbol
     let tokenInfo = tokens.filter(x => x.symbol == symbol && x.chainId === 101)[0];
@@ -38,13 +46,23 @@ exports.resolveTokenSymbol = async function (conn, symbol) {
     }
     return tokenInfo;
 }
-exports.readKeypairFromFile = function (path) {
-    let keypair = fs.readFileSync(path.replace(/\$([A-Z_]+[A-Z\d_]*)|\${([A-Z\d_]*)}/ig, (_, a, b) => process.env[a || b]));
-    return Keypair.fromSecretKey(Uint8Array.from(JSON.parse(keypair)));
+function resolveWalletSlug(slug) {
+    const wallets = nconf.get("wallets");
+    const path = wallets[slug];
+    if (!path) return slug;
+    return exports.readKeypairFromFile(path).publicKey.toBase58();
+}
+function toPubKey(s) {
+    return new PublicKey(resolveWalletSlug(s));
 }
 exports.rpcConnection = new Connection(
     exports.RPC_URL,
     "confirmed",
 );
+exports.resolveWalletSlug = resolveWalletSlug;
+exports.resolveTokenSymbol = resolveTokenSymbol;
+exports.readKeypairFromFile = readKeypairFromFile;
+exports.toPubKey = toPubKey;
+
 let keypairFile = nconf.get("wallets")[nconf.get("wallet")];
 exports.signer = exports.readKeypairFromFile(keypairFile);
